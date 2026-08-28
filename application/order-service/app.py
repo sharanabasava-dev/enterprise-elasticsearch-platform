@@ -1,3 +1,4 @@
+import requests
 from flask import Flask, jsonify
 import logging
 import os
@@ -57,7 +58,48 @@ def generate_error():
         "error": "Simulated order processing failure"
     }), 500
 
+@app.route("/orders/<order_id>/checkout")
+def checkout_order(order_id):
+    logger.info("Starting checkout for order: %s", order_id)
 
+    payment_service_url = os.getenv(
+        "PAYMENT_SERVICE_URL",
+        "http://payment-service:5002"
+    )
+
+    try:
+        response = requests.get(
+            f"{payment_service_url}/payments/PAY-1001",
+            timeout=5
+        )
+
+        response.raise_for_status()
+
+        payment_data = response.json()
+
+        logger.info(
+            "Payment completed successfully for order: %s",
+            order_id
+        )
+
+        return jsonify({
+            "order_id": order_id,
+            "order_status": "CONFIRMED",
+            "payment": payment_data
+        })
+
+    except requests.RequestException as error:
+        logger.error(
+            "Payment service communication failed: %s",
+            error
+        )
+
+        return jsonify({
+            "order_id": order_id,
+            "order_status": "PAYMENT_FAILED",
+            "error": "Payment service unavailable"
+        }), 503
+        
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
