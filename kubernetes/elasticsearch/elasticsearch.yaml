@@ -1,0 +1,40 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: enterprise-es
+  namespace: enterprise-dev
+
+spec:
+  version: 9.5.0
+
+  nodeSets:
+    - name: master-data
+      count: 1
+
+      config:
+        node.roles:
+          - master
+          - data
+          - ingest
+
+      podTemplate:
+        spec:
+          containers:
+            - name: elasticsearch
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 2Gi
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 5Gi
