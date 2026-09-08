@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: customer-service
-          image: customer-service:1.1.0
+          image: customer-service:1.2.0
           imagePullPolicy: IfNotPresent
 
           ports:
