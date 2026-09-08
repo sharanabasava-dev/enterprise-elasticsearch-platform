@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: customer-service
+  namespace: argocd
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/sharanabasava-dev/enterprise-elasticsearch-platform.git
+    targetRevision: main
+    path: kubernetes/applications
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: enterprise-dev
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=false
