@@ -1,18 +1,30 @@
 import requests
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import logging
 import os
 import socket
+import uuid
 from datetime import datetime, timezone
 
 app = Flask(__name__)
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s"
+    format="%(asctime)s %(levelname)s %(name)s request_id=%(request_id)s %(message)s"
 )
 
 logger = logging.getLogger("order-service")
+
+
+@app.before_request
+def add_request_id():
+    request.request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+
+
+@app.after_request
+def add_request_id_header(response):
+    response.headers["X-Request-ID"] = request.request_id
+    return response
 
 
 @app.route("/")
@@ -24,7 +36,8 @@ def home():
         "status": "UP",
         "hostname": socket.gethostname(),
         "environment": os.getenv("ENVIRONMENT", "local"),
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "request_id": request.request_id
     })
 
 
@@ -45,7 +58,8 @@ def get_order(order_id):
         "customer_id": "101",
         "product": "Laptop",
         "amount": 75000,
-        "status": "confirmed"
+        "status": "confirmed",
+        "request_id": request.request_id
     })
 
 
@@ -55,8 +69,10 @@ def generate_error():
 
     return jsonify({
         "service": "order-service",
-        "error": "Simulated order processing failure"
+        "error": "Simulated order processing failure",
+        "request_id": request.request_id
     }), 500
+
 
 @app.route("/orders/<order_id>/checkout")
 def checkout_order(order_id):
@@ -70,6 +86,9 @@ def checkout_order(order_id):
     try:
         response = requests.get(
             f"{payment_service_url}/payments/PAY-1001",
+            headers={
+                "X-Request-ID": request.request_id
+            },
             timeout=5
         )
 
@@ -85,7 +104,8 @@ def checkout_order(order_id):
         return jsonify({
             "order_id": order_id,
             "order_status": "CONFIRMED",
-            "payment": payment_data
+            "payment": payment_data,
+            "request_id": request.request_id
         })
 
     except requests.RequestException as error:
@@ -97,9 +117,11 @@ def checkout_order(order_id):
         return jsonify({
             "order_id": order_id,
             "order_status": "PAYMENT_FAILED",
-            "error": "Payment service unavailable"
+            "error": "Payment service unavailable",
+            "request_id": request.request_id
         }), 503
-        
+
+
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
