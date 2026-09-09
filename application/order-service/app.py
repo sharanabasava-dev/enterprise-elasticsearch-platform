@@ -1,5 +1,5 @@
 import requests
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, has_request_context
 import logging
 import os
 import socket
@@ -8,17 +8,40 @@ from datetime import datetime, timezone
 
 app = Flask(__name__)
 
+
+class RequestIdFilter(logging.Filter):
+    def filter(self, record):
+        if has_request_context():
+            record.request_id = getattr(
+                request,
+                "request_id",
+                "-"
+            )
+        else:
+            record.request_id = "-"
+
+        return True
+
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s request_id=%(request_id)s %(message)s"
+    format="%(asctime)s %(levelname)s %(name)s "
+           "request_id=%(request_id)s %(message)s"
 )
+
+# Make sure every log record has request_id,
+# including logs generated outside a request context.
+for handler in logging.getLogger().handlers:
+    handler.addFilter(RequestIdFilter())
 
 logger = logging.getLogger("order-service")
 
 
 @app.before_request
 def add_request_id():
-    request.request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.request_id = request.headers.get(
+        "X-Request-ID"
+    ) or str(uuid.uuid4())
 
 
 @app.after_request
@@ -45,13 +68,17 @@ def home():
 def health():
     return jsonify({
         "service": "order-service",
-        "status": "healthy"
+        "status": "healthy",
+        "request_id": request.request_id
     }), 200
 
 
 @app.route("/orders/<order_id>")
 def get_order(order_id):
-    logger.info("Fetching order: %s", order_id)
+    logger.info(
+        "Fetching order: %s",
+        order_id
+    )
 
     return jsonify({
         "order_id": order_id,
@@ -65,7 +92,9 @@ def get_order(order_id):
 
 @app.route("/error")
 def generate_error():
-    logger.error("Simulated order-service failure")
+    logger.error(
+        "Simulated order-service failure"
+    )
 
     return jsonify({
         "service": "order-service",
@@ -76,7 +105,10 @@ def generate_error():
 
 @app.route("/orders/<order_id>/checkout")
 def checkout_order(order_id):
-    logger.info("Starting checkout for order: %s", order_id)
+    logger.info(
+        "Starting checkout for order: %s",
+        order_id
+    )
 
     payment_service_url = os.getenv(
         "PAYMENT_SERVICE_URL",
